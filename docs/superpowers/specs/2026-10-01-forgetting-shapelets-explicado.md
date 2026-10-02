@@ -27,25 +27,37 @@ de **cartinhas problemáticas**.
 É como um médico que olha os primeiros sintomas e já desconfia do que vem pela frente. Se o
 aplicativo soubesse cedo, poderia ajudar com aquela cartinha antes de você perder tempo com ela.
 
-## Os três números mágicos: N, K e L
+## Os três números mágicos: N, H e L
 
-Pensa na vida de uma cartinha como uma fila de vezes em que ela apareceu:
+Pensa na vida de uma cartinha como uma fila de vezes em que ela apareceu, e depois um calendário:
 
 ```
-vezes:   1  2  3  4  5  6 │ 7  8  9  10 11 12 13 14 15 16
-         └─ N = 6 ───────┘ │ └────────── K = 10 ──────────┘
+vezes:   1  2  3  4  5  6 │ ─────────── próximos 180 dias ───────────
+         └─ N = 6 ───────┘ │ └─────────────── H = 180 ───────────────┘
          o computador VÊ    │ o computador NÃO vê — é aqui
                             │ que a gente confere a resposta
 ```
 
 - **N = 6:** o computador só pode olhar as **6 primeiras vezes**. É como espiar o começo do filme.
-- **K = 10:** depois, a gente olha as **10 vezes seguintes** para saber o que aconteceu de verdade.
+- **H = 180:** depois, a gente olha os **próximos 6 meses** para saber o que aconteceu de verdade.
   O computador **nunca** espia essa parte.
-- **L = 3:** se nessas 10 vezes você **esqueceu 3 ou mais**, a cartinha era teimosa.
+- **L = 2:** se nesses 6 meses você **esqueceu 2 vezes ou mais**, a cartinha era teimosa.
 
-**Por que 3?** Uma cartinha normal você esquece mais ou menos **1 vez a cada 10**. Esquecer 3
-vezes por puro azar é raro (acontece umas 7 vezes em 100). Então 3 é um bom sinal de "essa
-cartinha é diferente".
+**Por que meses, e não "as próximas 10 vezes"?** Essa foi a primeira ideia, e o dado mostrou que
+ela tinha uma pegadinha. Cartinha fácil quase não volta: o aplicativo espera meses para mostrar de
+novo. Então, se a gente só olhasse cartinhas que apareceram 16 vezes, ia olhar **quase só as
+difíceis**, e a corrida ficaria roubada. Olhando o calendário, a cartinha fácil que não voltou em
+6 meses conta como o que ela é: **fácil**.
+
+**Por que 2?** Porque assim mais ou menos **8 em cada 100** cartinhas ficam teimosas. Poucas o
+bastante para ser "diferente do normal", e muitas o bastante para o computador ter exemplos para
+aprender.
+
+**E se a pessoa parou de estudar?** Aí a gente não usa as cartinhas dela. Se ela largou o
+aplicativo, não dá para saber se a cartinha seria esquecida ou não.
+
+**E se uma pessoa tiver cartinhas demais?** Tem gente com 14 mil cartinhas e gente com 30. Para
+ninguém mandar sozinho na corrida, cada pessoa entra com **no máximo 200**.
 
 ## O que é um shapelet?
 
@@ -105,8 +117,11 @@ tudo. As duas respostas ensinam alguma coisa.
 
 ## Coisas que podem atrapalhar (e a gente avisa)
 
-- **Só entram cartinhas que apareceram pelo menos 16 vezes.** As que a pessoa abandonou antes
-  ficam de fora, e isso pode deixar o resultado um pouco torto.
+- **Só entram pessoas que continuaram estudando por 6 meses.** Quem desistiu antes fica de fora.
+- **Se a pessoa jogou uma cartinha fora**, ela parece "fácil" (não voltou), mesmo que fosse teimosa.
+  O dado não deixa diferenciar.
+- **Cada pessoa é muito diferente:** para umas, quase nenhuma cartinha é teimosa; para outras, 2 em
+  cada 10. Mais um motivo para não misturar as pessoas do treino com as da prova.
 - **O aplicativo escolhe quando mostrar a cartinha.** Então o tempo entre as vezes não é "natural":
   ele já depende das notas. É como medir quanto uma criança come quando é a mãe quem serve o prato.
 

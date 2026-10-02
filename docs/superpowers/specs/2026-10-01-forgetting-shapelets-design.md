@@ -1,6 +1,6 @@
 # forgetting-shapelets — Design
 
-> **Data:** 2026-10-01 · **Autora:** Ana Paula Endler · **Status:** aprovado em conversa, aguardando revisão da spec escrita
+> **Data:** 2026-10-01 · **Autora:** Ana Paula Endler · **Status:** aprovada · revisada em 2026-10-02 após sonda no dado (rótulo por horizonte em dias)
 > **Definido via** `/brainstorming` (seções 1–4 aprovadas uma a uma).
 
 ## 1. Propósito
@@ -45,12 +45,27 @@ Referência de protocolo e baselines: repo **`srs-benchmark`** (open-spaced-repe
 - **Split por usuário** (treino / val / teste disjuntos). Motivo: cada pessoa tem um jeito próprio
   de dar nota; com o mesmo usuário em treino e teste, o modelo aprende o usuário, não o esquecimento.
 
-### Checkpoints da Etapa 0 (verificar antes de seguir)
+- **Teto de 200 cards elegíveis por usuário** (sorteio com seed fixa), para nenhum usuário dominar
+  treino ou métrica. Sem teto, 2 de 30 usuários concentravam 40% dos cards na sonda.
 
-1. **Licença** do `anki-revlogs-10k` — define o que pode ser redistribuído e citado no README.
-2. Se o dado indica o **agendador** usado (SM-2 vs FSRS) — se indicar, vira recorte de análise.
-3. Se o **RDST do aeon aceita séries de tamanho desigual** — define o tratamento da Etapa 2.
-4. **Convenção de revisões no mesmo dia** do srs-benchmark — adotar a mesma.
+### Formato e acesso (verificado em 2026-10-02)
+
+- Um arquivo por usuário: `revlogs/user_id=<1..10000>/data.parquet` (também `cards/` e `decks/`).
+  Split por usuário = sortear quais arquivos baixar. Revisão fixada:
+  `75299740cff05894ef42d7ad990666691efdd2da`. ~2 MB por usuário (~1 GB para 500).
+- Colunas de `revlogs`: `card_id`, `day_offset`, `rating`, `state` (0 novo, 1 aprendendo,
+  2 revisão, 3 reaprendendo), `duration`, `elapsed_days`, `elapsed_seconds`. Já vem em ordem
+  cronológica. Só usuários com 5000+ revisões.
+- Dataset **gated** (aceitar termos no HF + token de leitura em `~/.cache/huggingface/token`).
+
+### Checkpoints da Etapa 0
+
+1. ✅ **Licença:** uso permitido para estudantes e indivíduos em pesquisa própria; **proibido
+   redistribuir** (só linkar). Consequência: dado nunca no git; `reports/` só com agregados e figuras.
+2. ✅ **Agendador:** o dado **não indica** SM-2 vs FSRS (há `preset_id` por deck, sem o algoritmo).
+   Fica só como limitação declarada.
+3. ⏳ Se o **RDST do aeon aceita séries de tamanho desigual** — define o tratamento da Etapa 2.
+4. ✅ **Revisões no mesmo dia:** deduplicar por `(card_id, day_offset)`, mantendo a primeira.
 
 ## 3. Etapas
 
@@ -66,26 +81,37 @@ Referência de protocolo e baselines: repo **`srs-benchmark`** (open-spaced-repe
 ### Pergunta
 
 > Olhando só as **6 primeiras revisões** de um card, dá para prever que ele vai falhar
-> **3 ou mais vezes nas 10 revisões seguintes**?
+> **2 ou mais vezes nos 180 dias seguintes**?
 
 ### Definições (fixadas antes de olhar o teste)
 
-- **Lapso:** nota 1 (Again) numa revisão de card já aprendido.
-- **N = 6:** janela de observação — as 6 primeiras revisões. É a série que o modelo vê.
-- **K = 10:** horizonte do rótulo — as 10 revisões seguintes à janela. O modelo nunca vê.
-- **L = 3:** card é **"problemático"** se tiver ≥ L lapsos nas K revisões seguintes.
+- **Lapso:** nota 1 (Again).
+- **N = 6:** janela de observação — as 6 primeiras revisões (após colapsar o mesmo dia). É a série
+  que o modelo vê.
+- **H = 180 dias:** horizonte do rótulo — as revisões com `day_offset` em (dia da 6ª, dia da 6ª + 180].
+  O modelo nunca vê.
+- **L = 2:** card é **"problemático"** se tiver ≥ L lapsos dentro do horizonte H.
 - Revisões no mesmo dia são colapsadas em uma (fica a primeira).
-- Cards com menos de N + K = 16 revisões são **excluídos**.
+- **Elegível:** card com ≥ N revisões **e** usuário ativo até pelo menos o dia da 6ª + H
+  (`max(day_offset)` do usuário ≥ dia da 6ª + 180). A censura depende do **usuário**, não do card:
+  um card fácil que não reaparece em 180 dias entra como não problemático, que é o que ele é.
 
-**Por que esses valores:** o Anki mira ~90% de acerto, então um card normal falha ~1 em 10. A
-chance de um card normal falhar ≥ 3 em 10 por azar é ~7% (binomial n = 10, p = 0,1). L = 3 separa
-"claramente pior que o esperado" e mantém a classe positiva na faixa de 5–15%. N = 6 é cedo o
-bastante para ser útil e longo o bastante para ter padrão.
+**Por que horizonte em dias e não em nº de revisões:** a primeira versão exigia 16 revisões por
+card (6 + 10 seguintes). A sonda de 2026-10-02 (30 usuários) mostrou que isso **seleciona os
+difíceis**: card fácil ganha intervalo longo e nunca acumula 16 revisões. Só 19% dos cards chegavam
+a 16, já com mais lapsos na janela (1,54 vs 0,90), e a prevalência ia a 24–40%. Além disso, a regra
+usava o futuro: na 6ª revisão ninguém sabe se o card chega a 16.
+
+**Por que esses valores:** com H = 180, a sonda deu 117 mil cards elegíveis em 29 de 30 usuários,
+e prevalência de **7–9% com L = 2** (L = 1: ~18%; L = 3: 4–5%). L = 2 fica na faixa 5–15%, com
+classe positiva suficiente. Usuário que parou antes de 180 dias sai — dado de quem abandonou o app
+não ajuda a responder a pergunta. N = 6 é cedo o bastante para ser útil e longo o bastante para
+ter padrão.
 
 **Nome:** "card problemático", não "leech". O leech do Anki é ≥ 8 lapsos no total — raro e tardio.
 Leech entra só como inspiração no README.
 
-**Robustez:** repetir com L = 2 e L = 4.
+**Robustez:** repetir com L = 1 e L = 3.
 
 ### Série de entrada
 
@@ -121,7 +147,11 @@ combinação M + B2 (só se sobrar tempo).
 
 ### Limitações a declarar
 
-- **Viés de sobrevivência:** só entram cards com ≥ 16 revisões (usuário não abandonou/apagou).
+- **Usuários que abandonaram:** só entram usuários ativos por ≥ 180 dias após a janela.
+- **Card suspenso ou apagado** dentro do horizonte vira "sem lapsos" — o dado não distingue isso de
+  "não precisou revisar".
+- **Prevalência varia muito entre usuários** (0% a 19% com L = 2 na sonda) — reforça o split por
+  usuário e o bootstrap por usuário.
 - **Confusão com o agendador:** os intervalos são decididos pelo agendador, que reage às notas;
   o canal de intervalo carrega parte da informação da nota, e SM-2 vs FSRS geram séries diferentes.
 - B2 usa FSRS com parâmetros default, não otimizado por usuário.
@@ -193,7 +223,7 @@ experimento por etapa para comparar.
 
 | Etapa | Comando | Versionado em |
 |---|---|---|
-| 0 | `uv run python -m fs.data` | `reports/etapa0.md`: nº de usuários/cards/revisões, prevalência de card problemático (só treino), distribuição do nº de revisões, 3 séries de exemplo |
+| 0 | `uv run python -m fs.data` | `reports/etapa0.md`: nº de usuários/cards/revisões, cards elegíveis antes/depois do teto, prevalência de card problemático (só treino), distribuição do nº de revisões, figura com 3 séries de exemplo (só figura — licença proíbe redistribuir o dado) |
 | 1 | `uv run python -m fs.leech` | `reports/etapa1/`: `metrics.json`, tabela B0–M com IC, curva PR, curva de calibração, figura dos top-5 shapelets com tradução |
 | 2 | `uv run python -m fs.next_review` | `reports/etapa2/`: mesmo formato, F0–M+F |
 
@@ -211,9 +241,10 @@ experimento por etapa para comparar.
 `tests/test_series.py` — só onde um erro estragaria o resultado em silêncio:
 
 - a janela nunca usa revisões além da N-ésima;
-- o rótulo usa só as revisões N+1…N+K;
+- o rótulo usa só revisões com dia em (dia da N-ésima, dia da N-ésima + H];
 - revisões no mesmo dia são colapsadas;
-- cards com menos de N + K revisões são excluídos;
+- cards com menos de N revisões, ou de usuário inativo antes do fim do horizonte, são excluídos;
+- teto de cards por usuário respeitado;
 - usuários de treino, val e teste são disjuntos.
 
 Código de modelo não tem teste unitário: a escada de baselines é o teste (M abaixo de B0 = bug).
