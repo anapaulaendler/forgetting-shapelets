@@ -54,3 +54,10 @@ def build_cards(revlog: pd.DataFrame, user_id: int, n: int = N, horizon_days: in
     cards["label"] = cards["lapses_h"] >= leech
     
     return cards[COLUMNS]
+
+
+def cap_per_user(cards: pd.DataFrame, cap: int = CAP, seed: int = 0) -> pd.DataFrame:
+    shuffled = cards.sample(frac=1, random_state=seed)
+    capped = shuffled.groupby("user_id").head(cap)
+
+    return capped.sort_values(["user_id", "card_id"]).reset_index(drop=True)
