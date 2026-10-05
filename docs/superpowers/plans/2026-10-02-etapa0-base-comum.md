@@ -176,7 +176,7 @@ Expected: 2 passed.
 - [ ] **Step 8: Commit**
 
 ```bash
-git add pyproject.toml uv.lock .python-version .gitignore src/fs tests
+git add pyproject.toml uv.lock .python-version .gitignore src/fs
 git commit -m "feat(series): projeto uv + colapso de revisões no mesmo dia"
 ```
 
@@ -315,7 +315,7 @@ Expected: 10 passed.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/fs/series.py tests/test_series.py
+git add src/fs/series.py
 git commit -m "feat(series): cards com janela de 6 revisões e rótulo em horizonte de 180 dias"
 ```
 
@@ -440,7 +440,7 @@ Expected: 14 passed.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/fs/series.py src/fs/data.py tests/test_series.py
+git add src/fs/series.py src/fs/data.py 
 git commit -m "feat(data): teto por usuário, split 60/20/20 por usuário e validação de schema"
 ```
 
@@ -656,9 +656,9 @@ Desenho completo: [`docs/superpowers/specs/2026-10-01-forgetting-shapelets-desig
 - [ ] **Step 9: Commit**
 
 ```bash
-git add src/fs/data.py README.md reports/
+git add src/fs/data.py reports/
 git status --short   # conferir de novo: nada de data/
-git commit -m "feat(data): pipeline da Etapa 0 e relatório da base (500 usuários)"
+git commit -m "feat(data): pipeline básico e relatório da base (500 usuários)"
 ```
 
 ---
