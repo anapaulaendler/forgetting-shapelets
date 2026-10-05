@@ -64,7 +64,7 @@ Referência de protocolo e baselines: repo **`srs-benchmark`** (open-spaced-repe
    redistribuir** (só linkar). Consequência: dado nunca no git; `reports/` só com agregados e figuras.
 2. ✅ **Agendador:** o dado **não indica** SM-2 vs FSRS (há `preset_id` por deck, sem o algoritmo).
    Fica só como limitação declarada.
-3. ⏳ Se o **RDST do aeon aceita séries de tamanho desigual** — define o tratamento da Etapa 2.
+3. ✅ **RDST aceita séries de tamanho desigual** (verificado em 2026-10-05), mas exige séries de treino ≥ maior shapelet — ver §5.
 4. ✅ **Revisões no mesmo dia:** deduplicar por `(card_id, day_offset)`, mantendo a primeira.
 
 ## 3. Etapas
@@ -167,35 +167,60 @@ combinação M + B2 (só se sobrar tempo).
 Para cada revisão *i* de um card: prever **P(lembrar)** dado o histórico 1…*i−1* **e o intervalo
 até a revisão *i*** (Δt, a variável mais importante — a memória decai com o tempo).
 
+### Pontos de previsão (decidido em 2026-10-05)
+
+- **Mesmos 500 usuários e mesmo split** da Etapa 0.
+- Por usuário, sortear até **200 cards** (seed fixa) entre os que têm ≥ 2 revisões (após colapsar o
+  mesmo dia) e prever **toda revisão a partir da 2ª**. Rótulo: lembrou = nota > 1.
+- ~1–2 mil pontos por usuário, ~700 mil no total.
+
 ### Entrada
 
-- Últimas **W = 8** revisões, padding à esquerda + canal-máscara ("aqui não havia revisão").
-  Se o checkpoint 3 confirmar suporte a séries desiguais no RDST, usar direto e remover o padding.
-- Δt entra como feature escalar concatenada às features do RDST.
+- Últimas **W = 8** revisões do card antes da revisão prevista: 2 canais (nota, log(1 + dias)).
+- ✅ **Checkpoint 3:** o RDST do aeon aceita séries de tamanhos diferentes — **sem padding até W e sem
+  canal-máscara**. Mas ele exige que toda série de treino tenha pelo menos o tamanho do maior shapelet
+  (4): históricos com menos de 4 revisões são **completados à esquerda até 4 com nota 0 e intervalo 0**.
+  Nota 0 não existe no dado, então o shapelet também pode aprender "histórico curto".
+- Δt (dias até a revisão prevista, em log) entra como feature escalar concatenada às features do RDST.
 
 ### Protocolo
 
-- Modelos globais (M, M+F) treinam nos **usuários de treino**.
-- Em cada **usuário de teste**, as revisões são ordenadas no tempo: os primeiros 50% servem só para
-  ajustar o FSRS por usuário (F1); **todos os modelos são avaliados nos últimos 50%**.
+- As revisões de cada usuário são ordenadas no tempo e divididas em **1ª e 2ª metade** (por contagem).
+- **M** treina em todos os pontos dos **usuários de treino**; `C` escolhido na **1ª metade dos usuários
+  de validação**.
+- **F1** é otimizado por usuário na **1ª metade** dele, para usuários de **validação e teste**:
+  limitado a **10 mil revisões**, de **cards inteiros sorteados** (cortar no meio do histórico de um
+  card faria o otimizador achar que a 1ª revisão que ele vê é a primeira de verdade). Os parâmetros
+  ficam em cache em `data/fsrs_params/`; otimização em paralelo. Medido: ~56 s para 21 mil revisões
+  num usuário real. Requer PyTorch (versão só-CPU).
+- **M+F** é um **stacking**: logística com 2 entradas (logit de p_F1 e logit de p_M), treinada na
+  **2ª metade dos usuários de validação**. Isso exige F1 só para validação + teste (200 usuários), e
+  não para os 300 de treino.
+- **Todos os modelos são avaliados na 2ª metade dos usuários de teste.**
 
 ### Modelos
 
 | | Modelo | O que testa |
 |---|---|---|
 | F0 | FSRS, parâmetros default | Baseline sem treino |
-| F1 | FSRS otimizado por usuário | **Baseline forte** — o uso real |
+| F1 | FSRS otimizado por usuário (1ª metade, ≤ 10 mil revisões) | **Baseline forte** — o uso real |
 | M | RDST(histórico) + Δt → logística | Shapelet sozinho |
-| **M+F** | p_FSRS(F1) + features RDST → logística | Shapelet acrescenta informação ao FSRS? |
+| **M+F** | logística(logit p_F1, logit p_M) — stacking | Shapelet acrescenta informação ao FSRS? |
 
 **Expectativa declarada:** M perde para F1 (FSRS é feito sob medida). A pergunta central é se
 **M+F supera F1**. Se não superar, a conclusão é "o FSRS já extrai o que a série tem".
 
 ### Métricas e critério
 
-- **Principal:** log loss (métrica do srs-benchmark).
+- **Principal:** log loss (métrica do srs-benchmark). **Menor é melhor.**
 - **Secundárias:** ROC-AUC, calibração.
-- IC 95% por bootstrap de usuários; mesmo critério de vitória da Etapa 1.
+- IC 95% por bootstrap de usuários; mesmo critério de vitória da Etapa 1: **M+F vence F1** só se o
+  IC de (log loss F1 − log loss M+F) ficar inteiro acima de zero.
+
+### Limitações a declarar (Etapa 2)
+
+- F1 otimizado com no máximo 10 mil revisões por usuário — o FSRS fica um pouco mais fraco que o ideal.
+- Pontos de previsão vêm de 200 cards por usuário, não de todas as revisões.
 
 Fora de escopo: HLR, SM-2, modelos neurais do benchmark — citados pelos números publicados no
 srs-benchmark, não reimplementados.
