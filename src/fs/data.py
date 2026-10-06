@@ -7,7 +7,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from huggingface_hub import hf_hub_download
 
-from solution.src.fs.series import build_cards
+from fs.series import build_cards, cap_per_user, N, HORIZON_DAYS, LEECH, CAP
 
 
 REPO = "open-spaced-repetition/anki-revlogs-10k"
@@ -26,7 +26,7 @@ def sample_users(n_users: int, seed: int = SEED) -> list[int]:
 def split_users(users: list[int], seed: int = SEED) -> dict[int, str]:
     shuffled = list(users)
 
-    random.Random(seed).shuffle(list(users))
+    random.Random(seed).shuffle(shuffled)
 
     a, b = int(len(shuffled) * 0.6), int(len(shuffled) * 0.8)
 
@@ -54,7 +54,7 @@ def write_report(eligible: pd.DataFrame, cards: pd.DataFrame, users: list[int], 
     fig.savefig(figs / "n_reviews.png")
     plt.close(fig)
 
-    normal, prob = train[~train["label"], train[train["label"]]]
+    normal, prob = train[~train["label"]], train[train["label"]]
     examples = pd.concat([normal.sample(min(2, len(normal)), random_state=0), prob.sample(min(1, len(prob)), random_state=0)])
 
     fig, axes = plt.subplots(2, 1, figsize=(6, 4.5), sharex=True)
@@ -72,22 +72,22 @@ def write_report(eligible: pd.DataFrame, cards: pd.DataFrame, users: list[int], 
     fig.savefig(figs / "series_exemplo.png", dpi=150)
     plt.close(fig)
 
-    splits = cards.groupby("split")["user_id"].unique().to_dict()
+    splits = cards.groupby("split")["user_id"].nunique().to_dict()
     prev = { l: (train["lapses_h"] >= l).mean() for l in (1, 2, 3)}
 
-    liness = [
+    lines = [
         "etapa 0: base comum",
         "",
-        f"gerado com `uv run python -m fs.data --n-users {len(users)}` em {seconds / 60:.1f} min"
-        f"dataset `{REPO}` @ `{REVISION[:12]}` . seed {SEED} . N = {N}, H = {H} dias, L = {L}, teto = {CAP}.",
+        f"gerado com `uv run python -m fs.data --n-users {len(users)}` em {seconds / 60:.1f} min",
+        f"dataset `{REPO}` @ `{REVISION[:12]}` . seed {SEED} . N = {N}, H = {HORIZON_DAYS} dias, L = {LEECH}, teto = {CAP}.",
         "",
         f"usuarios por split (com algum card) => treino {splits.get('train', 0)} . val {splits.get('val', 0)} . teste {splits.get('test', 0)}",
         f"usuarios sem nenhum card elegivel => {(per_user == 0).sum()}",
         f"revisoes brutas baixadas => {total_reviews:,}",
         f"cards elegiveis antes do teto => {len(eligible):,} (top-2 usuarios: {top2:.0%})",
-        f"cards elegiveis por usuario => mediana {per_user.median():.0f} . p90 {per_user.quantile(0.9):.0f} . max {per_user.max()} |",
+        f"cards elegiveis por usuario => mediana {per_user.median():.0f} . p90 {per_user.quantile(0.9):.0f} . max {per_user.max()}",
         f"cards apos o teto => {len(cards):,}",
-        f"prevalencia de card problematico no treino (L = {L}) => {prev[L]:.1%}",
+        f"prevalencia de card problematico no treino (L = {LEECH}) => {prev[LEECH]:.1%}",
         f"robustez no treino: L = 1 . L = 3 => {prev[1]:.1%} . {prev[3]:.1%}",
         "",
         "![revisões por card](etapa0/n_reviews.png)",

@@ -41,7 +41,7 @@ def build_cards(revlog: pd.DataFrame, user_id: int, n: int = N, horizon_days: in
     window = df[df["k"] < n]
     ratings = window.pivot(index="card_id", columns="k", values="rating").add_prefix("r")
 
-    intervals = window.pivot(index="card_id", columns="k", values="interval").add_prefix("i")
+    intervals = window.pivot(index="card_id", columns="k", values="log_interval").add_prefix("i")
 
     in_horizon = (df["day_offset"] > df["window_end_day"]) & (df["day_offset"] <= df["window_end_day"] + horizon_days)
 
