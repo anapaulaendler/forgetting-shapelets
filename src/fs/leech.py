@@ -1,3 +1,6 @@
+from datetime import datetime, timedelta, timezone
+
+from fsrs import Card, Rating, Scheduler
 import numpy as np
 import pandas as pd
 
@@ -6,6 +9,7 @@ from fs.series import N
 
 RATING_COLS = [f"r{k}" for k in range(N)]
 INTERVAL_COLS = [f"i{k}" for k in range(N)]
+BASE_DATE = datetime(2000, 1, 1, tzinfo=timezone.utc)
 
 
 def to_series(cards: pd.DataFrame) -> np.ndarray:
@@ -27,3 +31,24 @@ def window_features(cards: pd.DataFrame) -> pd.DataFrame:
         },
         index = cards.index
     )
+
+
+def review_days(cards: pd.DataFrame) -> np.ndarray:
+    gaps = np.rint(np.expm1(cards[INTERVAL_COLS].to_numpy(float))).astype(int)
+
+    return gaps.cumsum(axis=1)
+
+
+def fsrs_state(cards: pd.DataFrame) -> pd.DataFrame:
+    scheduler = Scheduler(enable_fuzzing=False)
+    rows = []
+
+    for k, (days, ratings) in enumerate(zip(review_days(cards), cards[RATING_COLS].to_numpy(int))):
+        card = Card(card_id=k)
+
+        for day, r in zip(days, ratings):
+            card, _ = scheduler.review_card(card, Rating(int(r)), review_datetime=BASE_DATE + timedelta(days=int(day)))
+
+        rows.append((card.stability, card.difficulty))
+
+    return pd.DataFrame(rows, columns=["stability", "dificulty"], index=cards.index)
